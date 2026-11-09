@@ -1,0 +1,33 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run typecheck
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://localhost/auth_test
+          SESSION_SECRET: test-session-secret-which-is-at-least-32-chars
+          CSRF_SECRET: test-csrf-secret-which-is-at-least-32-chars
+      - run: npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://localhost/auth_test
+          SESSION_SECRET: test-session-secret-which-is-at-least-32-chars
+          CSRF_SECRET: test-csrf-secret-which-is-at-least-32-chars
+      - run: npm run build
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://localhost/auth_test
+          SESSION_SECRET: test-session-secret-which-is-at-least-32-chars
+          CSRF_SECRET: test-csrf-secret-which-is-at-least-32-chars
