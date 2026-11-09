@@ -7,7 +7,7 @@ import { z } from "zod";
 import { pool } from "./db.js";
 import { config } from "./config.js";
 import { createCsrfToken, hashToken, isValidCsrfToken, randomToken } from "./security.js";
-import { issueAccountToken, consumeAccountToken } from "./account-tokens.js";
+import { issueAccountToken } from "./account-tokens.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email.js";
 
 const SESSION_COOKIE = "ocodejs_session";
