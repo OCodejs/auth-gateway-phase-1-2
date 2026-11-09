@@ -5,7 +5,9 @@ on:
     branches: [main]
 jobs:
   test:
+    name: PostgreSQL migration, typecheck, tests and build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -21,31 +23,37 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm install
-      - run: npm run db:migrate
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Apply database migrations
+        run: npm run db:migrate
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/auth_test
           SESSION_SECRET: test-session-secret-which-is-at-least-32-chars
           CSRF_SECRET: test-csrf-secret-which-is-at-least-32-chars
-      - run: npm run typecheck
+      - name: Typecheck
+        run: npm run typecheck
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/auth_test
           SESSION_SECRET: test-session-secret-which-is-at-least-32-chars
           CSRF_SECRET: test-csrf-secret-which-is-at-least-32-chars
-      - run: npm test
+      - name: Unit and integration tests
+        run: npm test
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/auth_test
           SESSION_SECRET: test-session-secret-which-is-at-least-32-chars
           CSRF_SECRET: test-csrf-secret-which-is-at-least-32-chars
-      - run: npm run build
+      - name: Production build
+        run: npm run build
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/auth_test
