@@ -1,114 +1,86 @@
-# OCodeJS Auth
+# OCodeJS Identity — Auth Gateway
 
-Trang đăng nhập / đăng ký cho **OCodeJS**: nền đen tối giản, góc vuông 100%, font mono. Một file HTML duy nhất, không cần build, không phụ thuộc thư viện.
+Central identity and authentication gateway for the Velclaw ecosystem (Velclaw, Velcli, Velclawhost and OCodeJS).
 
-## Tính năng
+> Current implementation status: Phase 1 foundation and Phase 2 email/password account/session APIs are being introduced. Google/GitHub federation and the OAuth 2.0 / OpenID Connect provider are later phases and are **not implemented yet**.
 
-- Hai màn hình trong một file: **Log in** và **Sign up**
-- Chuyển màn hình bằng hash route: `#login`, `#signup`
-- Nút OAuth: Google, GitHub (giao diện sẵn, chưa nối backend)
-- Form email (đăng nhập) và email + mật khẩu (đăng ký)
-- Nút Submit tự khóa cho đến khi dữ liệu hợp lệ
-- Nút hiện/ẩn mật khẩu
-- Checkbox nhận tin cập nhật (tùy chọn)
-- Responsive, tối ưu mobile (safe-area cho iPhone)
+## Architecture
 
-## Cấu trúc
+- `server/`: Fastify API, account identity and session handling.
+- `db/migrations/`: PostgreSQL schema.
+- PostgreSQL stores users, hashed session tokens and audit events.
+- Passwords are hashed with Argon2id.
+- Browser sessions use opaque random tokens in HttpOnly cookies; only SHA-256 token hashes are stored in the database.
+- CSRF uses a signed double-submit token and exact browser-origin allowlisting.
 
-```
-ocodejs-auth.html   # HTML + CSS + JS trong một file
-README.md
-```
+## Requirements
 
-## Chạy thử
+- Node.js 22+
+- PostgreSQL 14+
+- npm
 
-Mở trực tiếp `ocodejs-auth.html` bằng trình duyệt, hoặc serve tĩnh:
+## Local setup
 
 ```bash
-npx serve .
+npm install
+cp .env.example .env
 ```
 
-| URL | Màn hình |
-| --- | --- |
-| `/ocodejs-auth.html` | Log in (mặc định) |
-| `/ocodejs-auth.html#login` | Log in |
-| `/ocodejs-auth.html#signup` | Sign up |
+Set `DATABASE_URL`, `SESSION_SECRET` and `CSRF_SECRET` in `.env`. Both secrets must be independent random values of at least 32 characters.
 
-## Quy tắc validate (phía client)
+Apply the initial schema and start the API:
 
-- **Email**: khớp `^[^\s@]+@[^\s@]+\.[^\s@]+$`
-- **Password** (đăng ký): tối thiểu 8 ký tự
-- Nút Submit chỉ bật khi các điều kiện trên đạt
-
-> Validate phía client chỉ để hỗ trợ trải nghiệm. Backend phải validate lại.
-
-## Thiết kế
-
-Toàn bộ màu và font nằm ở CSS variables trong `:root`:
-
-```css
-:root{
-  --bg:#000;        /* nền */
-  --fg:#f5f5f5;     /* chữ chính */
-  --muted:#8a8a8a;  /* chữ phụ */
-  --line:#262626;   /* viền */
-  --field:#0a0a0a;  /* nền ô nhập */
-  --hover:#141414;  /* hover */
-  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-}
+```bash
+npm run db:migrate
+npm run dev
 ```
 
-- Góc vuông: `border-radius: 0 !important` áp dụng cho mọi phần tử
-- Font: JetBrains Mono (Google Fonts), có fallback sang font mono của hệ thống
-- Logo: SVG inline trong `.mark`, thay bằng logo thật nếu cần
+The API listens on `http://localhost:3000` by default.
 
-## Nối backend
+## Phase 1–2 API
 
-Hiện tại form chỉ hiển thị thông báo demo. Các điểm cần nối nằm trong thẻ `<script>`:
+- `GET /health` — health check.
+- `GET /api/v1/auth/csrf` — returns a CSRF token and sets its cookie.
+- `POST /api/v1/auth/register` — creates an account and session.
+- `POST /api/v1/auth/login` — verifies email/password and creates a session.
+- `GET /api/v1/me` — returns the current authenticated user.
+- `POST /api/v1/auth/logout` — revokes the current session and clears its cookie.
 
-1. **Submit form** – trong `bind()`, handler `submit`:
+State-changing browser requests must include cookies and the returned token in `X-CSRF-Token`.
 
-   ```js
-   f.addEventListener('submit', async function(e){
-     e.preventDefault();
-     // gọi API của bạn, ví dụ:
-     // await fetch('/api/auth/login', {
-     //   method: 'POST',
-     //   headers: {'Content-Type': 'application/json'},
-     //   body: JSON.stringify({ email })
-     // });
-   });
-   ```
+### Browser integration example
 
-2. **OAuth** – handler click của `.oauth` (thuộc tính `data-p` là `Google` hoặc `GitHub`). Chuyển hướng tới endpoint OAuth của server, ví dụ `/auth/google`.
+```js
+const csrf = await fetch("https://AUTH_HOST/api/v1/auth/csrf", {
+  credentials: "include"
+}).then((r) => r.json());
 
-3. **Thông báo lỗi/thành công** – ghi vào phần tử `#msg`.
+const response = await fetch("https://AUTH_HOST/api/v1/auth/login", {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    "X-CSRF-Token": csrf.csrfToken
+  },
+  body: JSON.stringify({ email, password })
+});
+```
 
-### Gợi ý bảo mật
+Replace `AUTH_HOST` with the real HTTPS hostname after it is assigned.
 
-- Luôn dùng HTTPS
-- Hash mật khẩu ở server (argon2 hoặc bcrypt), không lưu plaintext
-- Đặt cookie phiên với `HttpOnly`, `Secure`, `SameSite`
-- Thêm rate limit và CSRF protection cho endpoint auth
-- Không đặt token hay secret trong hash URL
+## Important deployment configuration
 
-## Khả năng truy cập
+- Use HTTPS in production; `NODE_ENV=production` enables Secure cookies.
+- Set `WEB_ORIGINS` to exact trusted origins, separated by commas. Do not use wildcard origins.
+- Set `COOKIE_DOMAIN` only when the UI and API intentionally share a parent domain.
+- Set independent `SESSION_SECRET` and `CSRF_SECRET` values; never commit secrets.
+- Run migrations as a release step, not on every web request.
+- Configure PostgreSQL backups and monitoring before production use.
+- If running behind a proxy, only trust the actual hosting proxy network.
 
-- Mỗi ô nhập có `<label>` đi kèm
-- Nút hiện/ẩn mật khẩu có `aria-label`
-- Vùng thông báo `#msg` dùng `role="status"`
-- Trạng thái focus hiển thị rõ bằng viền sáng
+## Security and current limitations
 
-## Tùy biến nhanh
-
-| Muốn | Sửa |
-| --- | --- |
-| Đổi tên thương hiệu | Thay `OCodeJS` trong `.brand`, tiêu đề `h1`, thẻ `<title>` |
-| Đổi logo | Thay SVG trong `.mark` |
-| Bỏ đăng nhập OAuth | Xóa các nút `.oauth` và khối `.or` |
-| Đổi độ dài mật khẩu tối thiểu | Sửa `>=8` trong `bind('f-signup', ...)` và placeholder |
-| Đổi font | Sửa `--mono` và link Google Fonts |
-
-## Giấy phép
-
-Chưa chỉ định. Thêm file `LICENSE` theo nhu cầu của dự án.
+- This phase does not yet include email verification, password-reset delivery, Google/GitHub OAuth, OIDC endpoints, application/client registry, refresh tokens, consent screens or ecosystem SSO.
+- Registration currently creates an account and session immediately. Do not expose public production registration until email verification, abuse controls and account recovery are configured.
+- Do not use this service as a production identity provider until the remaining phases and security tests are complete.
+- Never put provider secrets or database credentials in frontend code.
