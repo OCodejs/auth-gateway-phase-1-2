@@ -60,7 +60,7 @@ npm test
 npm run build
 ```
 
-GitHub Actions runs these checks on pull requests and pushes to `main`. The current automated unit tests cover token generation, token hashing and CSRF validation; they do not replace integration tests against a real PostgreSQL instance and SMTP sandbox.
+GitHub Actions runs these checks on pull requests and pushes to `main`. Automated tests cover token generation/hashing, CSRF validation, and a PostgreSQL-backed registration/login gate. They do not yet exercise successful email delivery, token consumption end-to-end, or a full browser flow.
 
 ## Production safety
 
