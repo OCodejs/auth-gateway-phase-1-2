@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { app } from "../server/app.js";
 import { pool } from "../server/db.js";
+import { issueAccountToken, consumeAccountToken } from "../server/account-tokens.js";
 
 test("registration requires verification before a password session can be created", async () => {
   const email = `integration-${Date.now()}@example.com`;
@@ -31,6 +32,11 @@ test("registration requires verification before a password session can be create
 
     const me = await app.inject({ method: "GET", url: "/api/v1/me" });
     assert.equal(me.statusCode, 401);
+
+    const user = await pool.query<{id:string}>("SELECT id FROM users WHERE email_normalized=$1", [email]);
+    const resetToken = await issueAccountToken(user.rows[0]!.id, "password_reset");
+    assert.equal(await consumeAccountToken(resetToken, "password_reset"), user.rows[0]!.id);
+    assert.equal(await consumeAccountToken(resetToken, "password_reset"), null);
   } finally {
     await pool.query("DELETE FROM users WHERE email_normalized=$1", [email]);
     await app.close();

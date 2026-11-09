@@ -9,7 +9,7 @@ Central identity and authentication gateway for the Velclaw ecosystem (Velclaw, 
 - Fastify API and PostgreSQL persistence.
 - Passwords are hashed with Argon2id.
 - Browser sessions use opaque random tokens in HttpOnly cookies; only SHA-256 token hashes are stored.
-- Email verification and password-reset tokens are random, single-use, expire after 30 minutes, and are stored as hashes.
+- Email verification and password-reset tokens are random, single-use, expire after 30 minutes, and are stored as hashes. Issuance is serialized per account; verification and password reset apply token consumption and account changes transactionally.
 - CSRF uses a signed double-submit token and exact browser-origin allowlisting.
 - SMTP delivers verification and password-reset emails. In development without SMTP, links are logged to the server console only.
 
@@ -24,7 +24,7 @@ npm install
 cp .env.example .env
 ```
 
-Configure `DATABASE_URL`, independent `SESSION_SECRET` and `CSRF_SECRET` values (at least 32 characters), `APP_BASE_URL`, exact `WEB_ORIGINS`, and SMTP settings. In production, `SMTP_HOST` is mandatory.
+Configure `DATABASE_URL`, independent `SESSION_SECRET` and `CSRF_SECRET` values (at least 32 characters), `APP_BASE_URL`, exact `WEB_ORIGINS`, and SMTP settings. In production, `SMTP_HOST` is mandatory. Set `TRUST_PROXY_HOPS` only to the number of trusted reverse-proxy hops in front of the app; leave it at `0` unless the hosting topology is known.
 
 ```bash
 npm run db:migrate
@@ -67,7 +67,8 @@ A GitHub Actions workflow is configured to run these checks on pull requests and
 - Use HTTPS; `NODE_ENV=production` enables Secure cookies.
 - Never use wildcard CORS origins with credentials.
 - Set `COOKIE_DOMAIN` only when UI and API intentionally share a parent domain.
-- Configure PostgreSQL backups, monitoring, SMTP deliverability and proxy trust settings before production.
+- Configure PostgreSQL backups, monitoring, SMTP deliverability and the exact trusted proxy hop count before production.
+- Email verification and reset links use the public `APP_BASE_URL`; the UI sends a no-referrer policy and removes reset tokens from browser history immediately.
 - Public registration should remain disabled until deployment-level abuse controls, monitoring and mail delivery have been verified.
 - Do not put provider secrets or database credentials in frontend code.
 - Google/GitHub OAuth, OIDC issuer endpoints, client registry, consent, refresh tokens and ecosystem SSO are not implemented yet.
