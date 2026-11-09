@@ -87,9 +87,12 @@ input:focus{border-color:var(--fg)}
     <form id="f-login" novalidate>
       <div class="field">
         <label for="l-email">Email</label>
-        <input id="l-email" type="email" placeholder="alan.turing@example.com" autocomplete="email" required>\n      </div>\n      <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required>
+        <input id="l-email" type="email" placeholder="alan.turing@example.com" autocomplete="email" required>
       </div>
-      <button class="submit" type="submit" disabled>Log In</button>\n      <p class="legal"><a href="#forgot">Forgot password?</a> · <a href="#" id="resend-verification">Resend verification email</a></p>
+      <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="submit" type="submit" disabled>Log In</button>
+      <p class="legal"><a href="#forgot">Forgot password?</a> · <a href="#" id="resend-verification">Resend verification email</a></p>
     </form>
     <p class="legal">By signing in, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.</p>
   </section>
@@ -125,7 +128,9 @@ input:focus{border-color:var(--fg)}
     <p class="legal">By signing up, you agree to our <a href="#">Terms</a>, <a href="#">Acceptable Use</a>, and <a href="#">Privacy Policy</a>.</p>
   </section>
 
-  <section id="forgot" hidden><h1>Reset password</h1><p class="sub">Enter your account email and we’ll send a reset link.</p><form id="f-forgot"><div class="field"><label for="r-email">Email</label><input id="r-email" type="email" autocomplete="email" required></div><button class="submit" type="submit">Send reset link</button></form><p class="legal"><a href="#login">Back to login</a></p></section>\n  <section id="reset" hidden><h1>Choose a new password</h1><form id="f-reset"><div class="field"><label for="n-pass">New password</label><input id="n-pass" type="password" minlength="12" autocomplete="new-password" required></div><button class="submit" type="submit">Update password</button></form></section>\n  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  <section id="forgot" hidden><h1>Reset password</h1><p class="sub">Enter your account email and we’ll send a reset link.</p><form id="f-forgot"><div class="field"><label for="r-email">Email</label><input id="r-email" type="email" autocomplete="email" required></div><button class="submit" type="submit">Send reset link</button></form><p class="legal"><a href="#login">Back to login</a></p></section>
+  <section id="reset" hidden><h1>Choose a new password</h1><form id="f-reset"><div class="field"><label for="n-pass">New password</label><input id="n-pass" type="password" minlength="12" autocomplete="new-password" required></div><button class="submit" type="submit">Update password</button></form></section>
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
 </main>
 
 <script>
