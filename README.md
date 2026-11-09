@@ -60,7 +60,7 @@ npm test
 npm run build
 ```
 
-GitHub Actions runs these checks on pull requests and pushes to `main`. Automated tests cover token generation/hashing, CSRF validation, and a PostgreSQL-backed registration/login gate. They do not yet exercise successful email delivery, token consumption end-to-end, or a full browser flow.
+A GitHub Actions workflow is configured to run these checks on pull requests and pushes to `main`; confirm a successful run in the PR before merging. Automated tests cover token generation/hashing, CSRF validation, and a PostgreSQL-backed registration/login gate. They do not yet exercise successful email delivery, token consumption end-to-end, or a full browser flow.
 
 ## Production safety
 
