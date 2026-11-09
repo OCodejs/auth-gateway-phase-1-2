@@ -45,7 +45,7 @@ async function createSession(request: FastifyRequest, reply: FastifyReply, userI
   reply.setCookie(SESSION_COOKIE, rawToken, cookieOptions(true));
 }
 
-const app = Fastify({ logger: true, trustProxy: config.NODE_ENV === "production", bodyLimit: 16 * 1024 });
+const app = Fastify({ logger: true, trustProxy: config.TRUST_PROXY_HOPS > 0 ? config.TRUST_PROXY_HOPS : false, bodyLimit: 16 * 1024 });
 await app.register(cookie);
 await app.register(cors, { credentials: true, methods: ["GET","POST","OPTIONS"],
   allowedHeaders: ["Content-Type","X-CSRF-Token"],
