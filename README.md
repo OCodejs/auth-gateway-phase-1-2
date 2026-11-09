@@ -2,85 +2,72 @@
 
 Central identity and authentication gateway for the Velclaw ecosystem (Velclaw, Velcli, Velclawhost and OCodeJS).
 
-> Current implementation status: Phase 1 foundation and Phase 2 email/password account/session APIs are being introduced. Google/GitHub federation and the OAuth 2.0 / OpenID Connect provider are later phases and are **not implemented yet**.
+> Current implementation: Phase 1–2 foundation, email/password accounts, email verification, password reset and browser session APIs. Google/GitHub federation and the OAuth 2.0 / OpenID Connect provider are later phases and are not implemented yet.
 
 ## Architecture
 
-- `server/`: Fastify API, account identity and session handling.
-- `db/migrations/`: PostgreSQL schema.
-- PostgreSQL stores users, hashed session tokens and audit events.
+- Fastify API and PostgreSQL persistence.
 - Passwords are hashed with Argon2id.
-- Browser sessions use opaque random tokens in HttpOnly cookies; only SHA-256 token hashes are stored in the database.
+- Browser sessions use opaque random tokens in HttpOnly cookies; only SHA-256 token hashes are stored.
+- Email verification and password-reset tokens are random, single-use, expire after 30 minutes, and are stored as hashes.
 - CSRF uses a signed double-submit token and exact browser-origin allowlisting.
+- SMTP delivers verification and password-reset emails. In development without SMTP, links are logged to the server console only.
 
-## Requirements
+## Requirements and setup
 
 - Node.js 22+
 - PostgreSQL 14+
-- npm
-
-## Local setup
+- SMTP credentials for production email delivery
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-Set `DATABASE_URL`, `SESSION_SECRET` and `CSRF_SECRET` in `.env`. Both secrets must be independent random values of at least 32 characters.
-
-Apply the initial schema and start the API:
+Configure `DATABASE_URL`, independent `SESSION_SECRET` and `CSRF_SECRET` values (at least 32 characters), `APP_BASE_URL`, exact `WEB_ORIGINS`, and SMTP settings. In production, `SMTP_HOST` is mandatory.
 
 ```bash
 npm run db:migrate
 npm run dev
 ```
 
-The API listens on `http://localhost:3000` by default.
+The API listens on `http://localhost:3000` by default. Migrations are ordered and tracked in `schema_migrations`; they are safe to rerun.
 
-## Phase 1–2 API
+## API
 
 - `GET /health` — health check.
-- `GET /api/v1/auth/csrf` — returns a CSRF token and sets its cookie.
-- `POST /api/v1/auth/register` — creates an account and session.
-- `POST /api/v1/auth/login` — verifies email/password and creates a session.
+- `GET /api/v1/auth/csrf` — issues CSRF cookie and token.
+- `POST /api/v1/auth/register` — creates an unverified account and sends verification email. No session is created.
+- `POST /api/v1/auth/verify-email` — consumes a single-use verification token.
+- `POST /api/v1/auth/resend-verification` — sends a new verification link; response does not reveal account existence.
+- `POST /api/v1/auth/login` — email/password login; verified email is required.
+- `POST /api/v1/auth/request-password-reset` — requests a reset link with a non-enumerating response.
+- `POST /api/v1/auth/reset-password` — consumes a single-use reset token, changes the password and revokes all sessions.
 - `GET /api/v1/me` — returns the current authenticated user.
 - `POST /api/v1/auth/logout` — revokes the current session and clears its cookie.
 
-State-changing browser requests must include cookies and the returned token in `X-CSRF-Token`.
+All state-changing browser requests must first call the CSRF endpoint, send cookies with `credentials: "include"`, and include the returned value in `X-CSRF-Token`.
 
-### Browser integration example
+## Frontend integration
 
-```js
-const csrf = await fetch("https://AUTH_HOST/api/v1/auth/csrf", {
-  credentials: "include"
-}).then((r) => r.json());
+The existing `index.html` now calls the API for login, registration, email verification, resend verification and password reset. By default it expects the API on the same origin. If the UI is hosted separately, define `window.AUTH_API_BASE = "https://<auth-host>"` before the page script and add the exact UI origin to `WEB_ORIGINS`. Configure `APP_BASE_URL` as the public URL where the UI handles the verification/reset query parameters.
 
-const response = await fetch("https://AUTH_HOST/api/v1/auth/login", {
-  method: "POST",
-  credentials: "include",
-  headers: {
-    "Content-Type": "application/json",
-    "X-CSRF-Token": csrf.csrfToken
-  },
-  body: JSON.stringify({ email, password })
-});
+## CI and local checks
+
+```bash
+npm run typecheck
+npm test
+npm run build
 ```
 
-Replace `AUTH_HOST` with the real HTTPS hostname after it is assigned.
+A GitHub Actions workflow is configured to run these checks on pull requests and pushes to `main`; confirm a successful run in the PR before merging. Automated tests cover token generation/hashing, CSRF validation, and a PostgreSQL-backed registration/login gate. They do not yet exercise successful email delivery, token consumption end-to-end, or a full browser flow.
 
-## Important deployment configuration
+## Production safety
 
-- Use HTTPS in production; `NODE_ENV=production` enables Secure cookies.
-- Set `WEB_ORIGINS` to exact trusted origins, separated by commas. Do not use wildcard origins.
-- Set `COOKIE_DOMAIN` only when the UI and API intentionally share a parent domain.
-- Set independent `SESSION_SECRET` and `CSRF_SECRET` values; never commit secrets.
-- Run migrations as a release step, not on every web request.
-- Configure PostgreSQL backups and monitoring before production use.
-- If running behind a proxy, only trust the actual hosting proxy network.
-
-## Security and current limitations
-
-- This phase does not yet include email verification, password-reset delivery, Google/GitHub OAuth, OIDC endpoints, application/client registry, refresh tokens, consent screens or ecosystem SSO.
-- Registration currently creates an account and session immediately. Do not expose public production registration until email verification, abuse controls and account recovery are configured.
-- Do not use this service as a production identity provider until the remaining phases and security tests are complete.
-- Never put provider secrets or database credentials in frontend code.
+- Use HTTPS; `NODE_ENV=production` enables Secure cookies.
+- Never use wildcard CORS origins with credentials.
+- Set `COOKIE_DOMAIN` only when UI and API intentionally share a parent domain.
+- Configure PostgreSQL backups, monitoring, SMTP deliverability and proxy trust settings before production.
+- Public registration should remain disabled until deployment-level abuse controls, monitoring and mail delivery have been verified.
+- Do not put provider secrets or database credentials in frontend code.
+- Google/GitHub OAuth, OIDC issuer endpoints, client registry, consent, refresh tokens and ecosystem SSO are not implemented yet.
