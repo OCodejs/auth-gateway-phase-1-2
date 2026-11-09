@@ -89,7 +89,7 @@ input:focus{border-color:var(--fg)}
         <label for="l-email">Email</label>
         <input id="l-email" type="email" placeholder="alan.turing@example.com" autocomplete="email" required>\n      </div>\n      <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required>
       </div>
-      <button class="submit" type="submit" disabled>Log In</button>\n      <p class="legal"><a href="#forgot">Forgot password?</a></p>
+      <button class="submit" type="submit" disabled>Log In</button>\n      <p class="legal"><a href="#forgot">Forgot password?</a> · <a href="#" id="resend-verification">Resend verification email</a></p>
     </form>
     <p class="legal">By signing in, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.</p>
   </section>
@@ -171,7 +171,7 @@ input:focus{border-color:var(--fg)}
     function upd(){btn.disabled=!check(f);} f.addEventListener('input',upd);upd();
     f.addEventListener('submit',function(e){e.preventDefault();if(!btn.disabled)submit(f,btn);});
   }
-  var emailRe=/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+  var emailRe=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   bind('f-login',function(f){return emailRe.test(f.querySelector('#l-email').value.trim())&&f.querySelector('#l-pass').value.length>=12;},function(f,b){
     b.disabled=true;api('/api/v1/auth/login',{email:f.querySelector('#l-email').value.trim(),password:f.querySelector('#l-pass').value})
       .then(function(){say('Signed in successfully.');})
@@ -185,6 +185,11 @@ input:focus{border-color:var(--fg)}
   bind('f-forgot',function(f){return emailRe.test(f.querySelector('#r-email').value.trim());},function(f,b){
     b.disabled=true;api('/api/v1/auth/request-password-reset',{email:f.querySelector('#r-email').value.trim()})
       .then(function(d){say(d.message);}).catch(function(e){say(e.message);}).finally(function(){b.disabled=false;});
+  });
+  document.getElementById('resend-verification').addEventListener('click',function(e){
+    e.preventDefault();var email=document.getElementById('l-email').value.trim();
+    if(!emailRe.test(email)){say('Enter your email above first.');return;}
+    api('/api/v1/auth/resend-verification',{email:email}).then(function(d){say(d.message);}).catch(function(err){say(err.message);});
   });
   document.getElementById('eye').addEventListener('click',function(){var i=document.getElementById('s-pass');i.type=i.type==='password'?'text':'password';});
   document.querySelectorAll('.oauth').forEach(function(b){b.addEventListener('click',function(){say(b.getAttribute('data-p')+' sign-in will be enabled in the OAuth phase.');});});
