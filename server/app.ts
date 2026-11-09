@@ -104,10 +104,23 @@ app.post("/api/v1/auth/verify-email", {config:{rateLimit:{max:10,timeWindow:"15 
   if(!requireCsrf(request,reply)) return;
   const parsed=z.object({token:z.string().min(20).max(256)}).safeParse(request.body);
   if(!parsed.success) return reply.code(400).send({error:"invalid_token"});
-  const userId=await consumeAccountToken(parsed.data.token,"email_verification");
-  if(!userId) return reply.code(400).send({error:"invalid_or_expired_token"});
-  await pool.query("UPDATE users SET email_verified_at=now(),updated_at=now() WHERE id=$1",[userId]);
-  await audit(request,"account.email_verified",userId);
+  const client=await pool.connect();
+  let userId:string|null=null;
+  try {
+    await client.query("BEGIN");
+    const consumed=await client.query<{user_id:string}>(
+      "UPDATE account_action_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose='email_verification' AND consumed_at IS NULL AND expires_at>now() RETURNING user_id",
+      [hashToken(parsed.data.token)]);
+    userId=consumed.rows[0]?.user_id??null;
+    if(!userId){await client.query("ROLLBACK");return reply.code(400).send({error:"invalid_or_expired_token"});}
+    await client.query("UPDATE users SET email_verified_at=now(),updated_at=now() WHERE id=$1",[userId]);
+    await client.query("INSERT INTO audit_logs(user_id,event_type,ip_address,user_agent) VALUES($1,$2,$3,$4)",
+      [userId,"account.email_verified",clientIp(request),request.headers["user-agent"]??null]);
+    await client.query("COMMIT");
+  } catch(error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally { client.release(); }
   return {ok:true,message:"Email verified. You can now log in."};
 });
 
@@ -121,7 +134,8 @@ app.post("/api/v1/auth/resend-verification", {config:{rateLimit:{max:3,timeWindo
   if(result.rows[0]) {
     const token=await issueAccountToken(result.rows[0].id,"email_verification");
     const url=new URL("/",config.APP_BASE_URL); url.searchParams.set("verify",token);
-    await sendVerificationEmail(result.rows[0].email,url.toString());
+    try { await sendVerificationEmail(result.rows[0].email,url.toString()); }
+    catch(error) { request.log.error({err:error},"Verification resend delivery failed"); }
   }
   return {ok:true,message:"If the account needs verification, an email will be sent."};
 });
@@ -136,8 +150,12 @@ app.post("/api/v1/auth/request-password-reset", {config:{rateLimit:{max:3,timeWi
   if(result.rows[0]) {
     const token=await issueAccountToken(result.rows[0].id,"password_reset");
     const url=new URL("/",config.APP_BASE_URL); url.searchParams.set("reset",token);
-    await sendPasswordResetEmail(result.rows[0].email,url.toString());
-    await audit(request,"auth.password_reset_requested",result.rows[0].id);
+    try {
+      await sendPasswordResetEmail(result.rows[0].email,url.toString());
+      await audit(request,"auth.password_reset_requested",result.rows[0].id);
+    } catch(error) {
+      request.log.error({err:error},"Password reset email delivery failed");
+    }
   }
   return {ok:true,message:"If an account matches that address, a reset link will be sent."};
 });
@@ -146,12 +164,24 @@ app.post("/api/v1/auth/reset-password", {config:{rateLimit:{max:5,timeWindow:"15
   if(!requireCsrf(request,reply)) return;
   const parsed=resetSchema.safeParse(request.body);
   if(!parsed.success) return reply.code(400).send({error:"invalid_input",message:"Password must be at least 12 characters."});
-  const userId=await consumeAccountToken(parsed.data.token,"password_reset");
-  if(!userId) return reply.code(400).send({error:"invalid_or_expired_token"});
   const passwordHash=await argon2.hash(parsed.data.password,{type:argon2.argon2id});
-  await pool.query("UPDATE users SET password_hash=$1,updated_at=now() WHERE id=$2",[passwordHash,userId]);
-  await pool.query("DELETE FROM user_sessions WHERE user_id=$1",[userId]);
-  await audit(request,"auth.password_reset_completed",userId);
+  const client=await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const consumed=await client.query<{user_id:string}>(
+      "UPDATE account_action_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose='password_reset' AND consumed_at IS NULL AND expires_at>now() RETURNING user_id",
+      [hashToken(parsed.data.token)]);
+    const userId=consumed.rows[0]?.user_id;
+    if(!userId){await client.query("ROLLBACK");return reply.code(400).send({error:"invalid_or_expired_token"});}
+    await client.query("UPDATE users SET password_hash=$1,updated_at=now() WHERE id=$2",[passwordHash,userId]);
+    await client.query("DELETE FROM user_sessions WHERE user_id=$1",[userId]);
+    await client.query("INSERT INTO audit_logs(user_id,event_type,ip_address,user_agent) VALUES($1,$2,$3,$4)",
+      [userId,"auth.password_reset_completed",clientIp(request),request.headers["user-agent"]??null]);
+    await client.query("COMMIT");
+  } catch(error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally { client.release(); }
   return {ok:true,message:"Password updated. Please log in again."};
 });
 
