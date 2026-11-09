@@ -33,5 +33,7 @@ test("registration requires verification before a password session can be create
     assert.equal(me.statusCode, 401);
   } finally {
     await pool.query("DELETE FROM users WHERE email_normalized=$1", [email]);
+    await app.close();
+    await pool.end();
   }
 });
