@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
 <title>OCodeJS — Auth</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -161,15 +162,16 @@ input:focus{border-color:var(--fg)}
       .finally(function(){history.replaceState({},'',location.pathname+'#login');});
   }
   if(params.has('reset')){
+    var resetToken=params.get('reset');
+    history.replaceState({},'',location.pathname+'#reset');
     show('reset');say('Enter a new password to continue.');
     document.getElementById('f-reset').addEventListener('submit',function(e){
       e.preventDefault();var password=document.getElementById('n-pass').value;
       if(password.length<12){say('Password must be at least 12 characters.');return;}
-      api('/api/v1/auth/reset-password',{token:params.get('reset'),password})
+      api('/api/v1/auth/reset-password',{token:resetToken,password})
         .then(function(){history.replaceState({},'',location.pathname+'#login');show('login');say('Password updated. Please log in.');})
         .catch(function(err){say(err.message);});
     });
-    history.replaceState({},'',location.pathname+'?reset='+encodeURIComponent(params.get('reset'))+'#reset');
   }
   function bind(formId,check,submit){
     var f=document.getElementById(formId),btn=f.querySelector('.submit');
